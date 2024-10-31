@@ -27,14 +27,6 @@ variable "region" {
   type = string
 }
 
-variable "vpc_id" {
-  type = string
-}
-
-variable "vpc_subnets" {
-  description = "vnet subnet ids"
-}
-
 variable "k8s_version" {
   type = string
 }
