@@ -48,8 +48,6 @@ resource "aws_route_table_association" "rta" {
   route_table_id = aws_route_table.rt.id
 }
 
-
-data "aws_availability_zones" "available" {}
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 19.0"
