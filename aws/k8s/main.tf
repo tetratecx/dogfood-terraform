@@ -1,3 +1,54 @@
+data "aws_region" "current" {}
+
+resource "aws_vpc" "tsb" {
+  cidr_block           = var.cidr
+  enable_dns_hostnames = true
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}_vpc"
+  })
+}
+
+data "aws_availability_zones" "available" {}
+
+resource "aws_subnet" "tsb" {
+  count                   = min(length(data.aws_availability_zones.available.names), var.min_az_count, var.max_az_count)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  cidr_block              = cidrsubnet(var.cidr, 4, count.index)
+  vpc_id                  = aws_vpc.tsb.id
+  map_public_ip_on_launch = "true"
+  tags = merge(var.tags, {
+  Name = "${var.name_prefix}_subnet_${data.aws_availability_zones.available.names[count.index]}", "kubernetes.io/role/elb" = 1, "kubernetes.io/role/internal-elb" = 1 })
+}
+
+resource "aws_internet_gateway" "tsb" {
+  vpc_id = aws_vpc.tsb.id
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}_igw"
+  })
+}
+
+
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.tsb.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.tsb.id
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}_rt"
+  })
+}
+
+
+resource "aws_route_table_association" "rta" {
+  count          = min(length(data.aws_availability_zones.available.names), var.min_az_count, var.max_az_count)
+  subnet_id      = element(aws_subnet.tsb.*.id, count.index)
+  route_table_id = aws_route_table.rt.id
+}
+
+
 data "aws_availability_zones" "available" {}
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -9,8 +60,8 @@ module "eks" {
   cluster_endpoint_public_access  = true
   create_cloudwatch_log_group     = false
 
-  vpc_id     = var.vpc_id
-  subnet_ids = var.vpc_subnets
+  vpc_id     = aws_vpc.tsb.id
+  subnet_ids = aws_subnet.tsb.*.id
 
   eks_managed_node_group_defaults = {
     disk_size      = 50
@@ -167,8 +218,3 @@ resource "kubernetes_annotations" "default-storageclass" {
   }
 }
 
-resource "local_file" "gen_kubeconfig_sh" {
-  content         = "eksctl utils write-kubeconfig --cluster ${var.cluster_name} --region ${data.aws_availability_zones.available.id} --kubeconfig ${var.cluster_name}-kubeconfig"
-  filename        = "${var.output_path}/generate-${var.cluster_name}-kubeconfig.sh"
-  file_permission = "0755"
-}

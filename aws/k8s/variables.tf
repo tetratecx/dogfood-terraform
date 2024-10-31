@@ -3,6 +3,21 @@ variable "name_prefix" {
   description = "name prefix"
 }
 
+variable "cidr" {
+  type        = string
+  description = "cidr"
+}
+
+variable "min_az_count" {
+  type    = string
+  default = 2
+}
+
+variable "max_az_count" {
+  type    = string
+  default = 3
+}
+
 variable "cluster_name" {
   type        = string
   description = "cluster name"
@@ -25,10 +40,6 @@ variable "k8s_version" {
 }
 
 variable "instance_type" {
-  type = string
-}
-
-variable "output_path" {
   type = string
 }
 
